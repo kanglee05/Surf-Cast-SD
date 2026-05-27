@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+.env
+.env.*
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Data — keep large downloads local; allow README placeholders
+data/raw/**
+!data/raw/README.md
+data/processed/**
+!data/processed/README.md
+*.nc
+*.csv
+!tests/fixtures/**/*.csv
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
