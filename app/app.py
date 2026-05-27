@@ -68,6 +68,47 @@ NDBC_STATIONS: dict[str, str] = {
     "46254": "Mission Bay West",
 }
 
+# Surf zone polygons — [lat, lon] vertices tracing each break's surfable area
+# Each shape runs along the shore (N→S) then closes offshore, ~300–500m wide
+BREAK_POLYGONS: dict[str, list[list[float]]] = {
+    "blacks": [                     # Long beach below Torrey Pines cliffs
+        [32.894, -117.248],         # north shoreline
+        [32.894, -117.256],         # north offshore
+        [32.876, -117.255],         # south offshore
+        [32.876, -117.248],         # south shoreline
+    ],
+    "la_jolla_shores": [            # Sandy beach south of Blacks
+        [32.870, -117.252],
+        [32.870, -117.258],
+        [32.855, -117.257],
+        [32.855, -117.251],
+    ],
+    "pb_point": [                   # Crystal Pier area, Pacific Beach
+        [32.803, -117.253],
+        [32.803, -117.260],
+        [32.788, -117.259],
+        [32.788, -117.252],
+    ],
+    "ocean_beach": [                # OB Pier and surrounding break
+        [32.754, -117.250],
+        [32.754, -117.257],
+        [32.740, -117.256],
+        [32.740, -117.249],
+    ],
+    "sunset_cliffs": [              # Rocky reef stretch along the cliffs
+        [32.733, -117.248],
+        [32.733, -117.256],
+        [32.708, -117.254],
+        [32.708, -117.247],
+    ],
+    "imperial_beach": [             # Southernmost SD beach near the pier
+        [32.593, -117.128],
+        [32.593, -117.144],
+        [32.573, -117.142],
+        [32.573, -117.126],
+    ],
+}
+
 # Approximate NDBC buoy locations (offshore San Diego)
 BUOYS: dict[str, dict] = {
     "46232": {"name": "NDBC 46232 · Point Loma South", "lat": 32.748, "lon": -117.373},
@@ -367,23 +408,28 @@ def _surf_map(active_break: str) -> html.Div:
                     "color": color, "fontSize": "11px", "fontWeight": "700",
                     "letterSpacing": "0.4px", "marginBottom": "8px", "fontFamily": FONT,
                 }),
-                html.Div("Click marker to load →", style={
+                html.Div("Click to load conditions →", style={
                     "color": ACCENT, "fontSize": "10px", "fontFamily": FONT,
                 }),
             ], style={"minWidth": "140px", "padding": "2px"}),
             autoPan=False,
         )
 
-        markers.append(dl.CircleMarker(
+        markers.append(dl.Polygon(
             id={"type": "break-marker", "index": bid},
-            center=[info["lat"], info["lon"]],
-            radius=13 if active else 9,
-            color="#ffffff",
+            positions=BREAK_POLYGONS[bid],
+            color=color,
             weight=2.5 if active else 1.5,
             fillColor=color,
-            fillOpacity=1.0 if active else 0.75,
+            fillOpacity=0.45 if active else 0.18,
             n_clicks=0,
-            children=popup,
+            children=[
+                popup,
+                dl.Tooltip(
+                    f"{info['name']}  ·  {lo:.0f}–{hi:.0f} ft  ·  {_rating_label(rating)}",
+                    sticky=True,
+                ),
+            ],
         ))
 
     # NDBC buoy markers — dashed border, informational only
