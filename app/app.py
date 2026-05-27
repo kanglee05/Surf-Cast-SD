@@ -68,46 +68,6 @@ NDBC_STATIONS: dict[str, str] = {
     "46254": "Mission Bay West",
 }
 
-# Surf zone polygons — [lat, lon] vertices tracing each break's surfable area
-# Each shape runs along the shore (N→S) then closes offshore, ~300–500m wide
-BREAK_POLYGONS: dict[str, list[list[float]]] = {
-    "blacks": [                     # Long beach below Torrey Pines cliffs
-        [32.894, -117.248],         # north shoreline
-        [32.894, -117.256],         # north offshore
-        [32.876, -117.255],         # south offshore
-        [32.876, -117.248],         # south shoreline
-    ],
-    "la_jolla_shores": [            # Sandy beach south of Blacks
-        [32.870, -117.252],
-        [32.870, -117.258],
-        [32.855, -117.257],
-        [32.855, -117.251],
-    ],
-    "pb_point": [                   # Crystal Pier area, Pacific Beach
-        [32.803, -117.253],
-        [32.803, -117.260],
-        [32.788, -117.259],
-        [32.788, -117.252],
-    ],
-    "ocean_beach": [                # OB Pier and surrounding break
-        [32.754, -117.250],
-        [32.754, -117.257],
-        [32.740, -117.256],
-        [32.740, -117.249],
-    ],
-    "sunset_cliffs": [              # Rocky reef stretch along the cliffs
-        [32.733, -117.248],
-        [32.733, -117.256],
-        [32.708, -117.254],
-        [32.708, -117.247],
-    ],
-    "imperial_beach": [             # Southernmost SD beach near the pier
-        [32.593, -117.128],
-        [32.593, -117.144],
-        [32.573, -117.142],
-        [32.573, -117.126],
-    ],
-}
 
 # Approximate NDBC buoy locations (offshore San Diego)
 BUOYS: dict[str, dict] = {
@@ -415,13 +375,14 @@ def _surf_map(active_break: str) -> html.Div:
             autoPan=False,
         )
 
-        markers.append(dl.Polygon(
+        markers.append(dl.CircleMarker(
             id={"type": "break-marker", "index": bid},
-            positions=BREAK_POLYGONS[bid],
-            color=color,
+            center=[info["lat"], info["lon"]],
+            radius=13 if active else 9,
+            color="#ffffff",
             weight=2.5 if active else 1.5,
             fillColor=color,
-            fillOpacity=0.45 if active else 0.18,
+            fillOpacity=1.0 if active else 0.75,
             n_clicks=0,
             children=[
                 popup,
@@ -832,6 +793,189 @@ def _page(break_id: str) -> html.Div:
     ])
 
 
+# ── LANDING PAGE ─────────────────────────────────────────────────────────────
+
+def _landing_page() -> html.Div:
+    featured = ["la_jolla_shores", "pb_point", "sunset_cliffs"]
+    chips = []
+    for bid in featured:
+        fc     = generate_forecast(bid, hours=1)
+        row    = fc.iloc[0]
+        info   = BREAKS[bid]
+        color  = RATING_COLORS[row["rating"]]
+        chips.append(html.Div(
+            style={
+                "background": "#0d1b29",
+                "border":     f"1px solid {NAV_BORDER}",
+                "borderTop":  f"2px solid {color}",
+                "borderRadius": "8px",
+                "padding": "20px 24px",
+                "minWidth": "160px",
+                "textAlign": "left",
+            },
+            children=[
+                html.Div(info["name"], style={
+                    "color": NAV_MUTED, "fontSize": "11px", "fontWeight": "600",
+                    "letterSpacing": "0.5px", "marginBottom": "8px",
+                    "textTransform": "uppercase", "fontFamily": FONT,
+                }),
+                html.Div(
+                    f"{row['wvht_ft_lo']:.0f}–{row['wvht_ft_hi']:.0f} ft",
+                    style={
+                        "color": "#fff", "fontSize": "30px", "fontWeight": "700",
+                        "fontFamily": FONT, "marginBottom": "6px",
+                        "fontVariantNumeric": "tabular-nums",
+                    },
+                ),
+                html.Div(_rating_label(row["rating"]), style={
+                    "color": color, "fontSize": "11px", "fontWeight": "700",
+                    "letterSpacing": "0.5px", "fontFamily": FONT,
+                }),
+            ],
+        ))
+
+    sources = [
+        ("NDBC Buoys",   "Live swell height, period, and direction from offshore stations 46232 (Point Loma) and 46254 (Mission Bay)."),
+        ("NOAA Wind",    "Hourly wind speed and direction per break from the National Weather Service forecast API."),
+        ("Tide Data",    "Hourly tide heights from NOAA CO-OPS station 9410170 at La Jolla."),
+        ("Surf Ratings", "Automated GREAT / GOOD / FAIR / POOR scoring from wave height, period, and offshore wind alignment."),
+    ]
+
+    return html.Div(
+        style={"background": NAV_BG, "minHeight": "100vh", "fontFamily": FONT, "color": "#fff"},
+        children=[
+            # Top bar
+            html.Div(
+                style={
+                    "padding": "20px 40px", "display": "flex", "alignItems": "center",
+                    "borderBottom": f"1px solid {NAV_BORDER}",
+                },
+                children=[
+                    html.Span("SurfCast SD", style={
+                        "color": BRAND, "fontWeight": "700", "fontSize": "18px", "fontFamily": FONT,
+                    }),
+                    html.Span("UCSD Surf & Sail Club", style={
+                        "color": NAV_MUTED, "fontSize": "12px", "marginLeft": "12px", "fontFamily": FONT,
+                    }),
+                ],
+            ),
+
+            # Hero
+            html.Div(
+                style={
+                    "minHeight": "calc(100vh - 61px)",
+                    "display": "flex", "flexDirection": "column",
+                    "justifyContent": "center", "alignItems": "center",
+                    "textAlign": "center", "padding": "60px 24px 80px",
+                },
+                children=[
+                    html.Div("SAN DIEGO  ·  SURF INTELLIGENCE", style={
+                        "color": BRAND, "fontSize": "11px", "fontWeight": "700",
+                        "letterSpacing": "3px", "marginBottom": "28px", "fontFamily": FONT,
+                    }),
+                    html.H1("Know before you go.", style={
+                        "color": "#fff",
+                        "fontSize": "clamp(44px, 8vw, 88px)",
+                        "fontWeight": "700",
+                        "margin": "0 0 20px",
+                        "letterSpacing": "-2.5px",
+                        "lineHeight": "1.0",
+                        "fontFamily": FONT,
+                    }),
+                    html.P(
+                        "Real-time NDBC buoy data, NOAA forecasts, and surf ratings "
+                        "for every major San Diego break.",
+                        style={
+                            "color": NAV_MUTED, "fontSize": "18px", "lineHeight": "1.65",
+                            "maxWidth": "500px", "margin": "0 auto 52px", "fontFamily": FONT,
+                        },
+                    ),
+                    html.Button(
+                        "View Live Conditions →",
+                        id="launch-btn",
+                        n_clicks=0,
+                        style={
+                            "background": BRAND, "color": "#fff", "border": "none",
+                            "padding": "15px 36px", "borderRadius": "6px",
+                            "fontSize": "16px", "fontWeight": "700",
+                            "cursor": "pointer", "fontFamily": FONT,
+                            "marginBottom": "80px", "letterSpacing": "-0.2px",
+                        },
+                    ),
+                    html.Div(chips, style={
+                        "display": "flex", "gap": "16px",
+                        "flexWrap": "wrap", "justifyContent": "center",
+                    }),
+                    html.Div("Live conditions · updates hourly", style={
+                        "color": "#2a3a4a", "fontSize": "11px",
+                        "marginTop": "20px", "fontFamily": FONT,
+                    }),
+                ],
+            ),
+
+            # Data sources
+            html.Div(
+                style={"borderTop": f"1px solid {NAV_BORDER}", "padding": "80px 40px"},
+                children=[
+                    html.Div(
+                        style={"maxWidth": "880px", "margin": "0 auto"},
+                        children=[
+                            html.Div("DATA SOURCES", style={
+                                "color": NAV_MUTED, "fontSize": "10px", "fontWeight": "700",
+                                "letterSpacing": "2.5px", "textAlign": "center",
+                                "marginBottom": "56px", "fontFamily": FONT,
+                            }),
+                            html.Div([
+                                html.Div(
+                                    style={
+                                        "borderTop": f"1px solid {NAV_BORDER}",
+                                        "paddingTop": "24px",
+                                    },
+                                    children=[
+                                        html.Div(title, style={
+                                            "color": "#fff", "fontWeight": "700",
+                                            "fontSize": "14px", "marginBottom": "10px",
+                                            "fontFamily": FONT,
+                                        }),
+                                        html.Div(desc, style={
+                                            "color": NAV_MUTED, "fontSize": "13px",
+                                            "lineHeight": "1.65", "fontFamily": FONT,
+                                        }),
+                                    ],
+                                )
+                                for title, desc in sources
+                            ], style={
+                                "display": "grid",
+                                "gridTemplateColumns": "repeat(auto-fit, minmax(180px, 1fr))",
+                                "gap": "32px",
+                            }),
+                        ],
+                    ),
+                ],
+            ),
+
+            # Footer
+            html.Div(
+                style={
+                    "borderTop": f"1px solid {NAV_BORDER}",
+                    "padding": "28px 40px",
+                    "display": "flex",
+                    "justifyContent": "space-between",
+                    "alignItems": "center",
+                },
+                children=[
+                    html.Div("SurfCast SD · UCSD Surf & Sail Club", style={
+                        "color": NAV_MUTED, "fontSize": "12px", "fontFamily": FONT,
+                    }),
+                    html.Div("Data: NDBC · NOAA · NWS", style={
+                        "color": "#2a3a4a", "fontSize": "11px", "fontFamily": FONT,
+                    }),
+                ],
+            ),
+        ],
+    )
+
+
 # ── APP ───────────────────────────────────────────────────────────────────────
 
 app = Dash(
@@ -845,28 +989,65 @@ app = Dash(
 server = app.server  # expose for gunicorn
 
 app.layout = html.Div(
-    style={"background": BG, "minHeight": "100vh", "fontFamily": FONT},
+    style={"background": NAV_BG},
     children=[
-        _navbar(),
+        dcc.Location(id="url"),
+
+        # ── Landing page (shown at "/") ──────────────────────────────────────
         html.Div(
-            style={
-                "background": SURFACE, "borderBottom": f"1px solid {BORDER}",
-                "padding": "6px 24px",
-            },
+            id="landing-wrapper",
+            className="page-enter",
+            children=_landing_page(),
+        ),
+
+        # ── Dashboard (shown at "/dashboard") ───────────────────────────────
+        html.Div(
+            id="dashboard-wrapper",
+            className="hidden",
             children=[
-                dcc.Dropdown(
-                    id="break-select",
-                    options=[{"label": v["name"], "value": k} for k, v in BREAKS.items()],
-                    value="la_jolla_shores",
-                    clearable=False,
-                    style={"maxWidth": "280px", "fontSize": "14px", "fontFamily": FONT},
+                _navbar(),
+                html.Div(
+                    style={
+                        "background": SURFACE,
+                        "borderBottom": f"1px solid {BORDER}",
+                        "padding": "6px 24px",
+                    },
+                    children=[
+                        dcc.Dropdown(
+                            id="break-select",
+                            options=[{"label": v["name"], "value": k} for k, v in BREAKS.items()],
+                            value="la_jolla_shores",
+                            clearable=False,
+                            style={"maxWidth": "280px", "fontSize": "14px", "fontFamily": FONT},
+                        ),
+                    ],
                 ),
+                html.Div(id="page-content"),
+                dcc.Interval(id="tick", interval=60 * 60 * 1000, n_intervals=0),
             ],
         ),
-        html.Div(id="page-content"),
-        dcc.Interval(id="tick", interval=60 * 60 * 1000, n_intervals=0),
     ],
 )
+
+
+@app.callback(
+    Output("url", "pathname"),
+    Input("launch-btn", "n_clicks"),
+    prevent_initial_call=True,
+)
+def launch_dashboard(_: int) -> str:
+    return "/dashboard"
+
+
+@app.callback(
+    Output("landing-wrapper", "className"),
+    Output("dashboard-wrapper", "className"),
+    Input("url", "pathname"),
+)
+def route(pathname: str) -> tuple[str, str]:
+    if pathname == "/dashboard":
+        return "hidden", "page-enter"
+    return "page-enter", "hidden"
 
 
 @app.callback(
