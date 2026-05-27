@@ -1,5 +1,4 @@
 {
-  "dependencies": {
-    "framer-motion": "^12.40.0"
-  }
+  "private": true,
+  "description": "SurfCast SD — no npm dependencies. Dash assets are served by Flask."
 }
