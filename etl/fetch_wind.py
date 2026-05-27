@@ -147,9 +147,15 @@ def main() -> None:
         df = fetch_wind_all_breaks(cache_dir=NWS_CACHE_DIR)
         print(df.head(12))
         print("rows:", len(df))
+
+        out_dir = Path("data/processed")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        run_date = pd.Timestamp.now(tz="UTC").strftime("%Y%m%d")
+        out_path = out_dir / f"wind_{run_date}.csv"
+        df.to_csv(out_path, index=False)
+        print(f"wrote {out_path}")
     except NotImplementedError:
         print("Implement this module — start at the docstring at the top of etl/fetch_wind.py")
-
 
 if __name__ == "__main__":
     main()
