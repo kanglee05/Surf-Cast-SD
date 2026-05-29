@@ -118,6 +118,12 @@ export function SurfcastNavbar() {
 
               {/* Simple links */}
               <NavigationMenuItem>
+                <Link href="/pricing" className="inline-flex h-9 items-center px-3 text-sm rounded-md transition-colors hover:bg-white/8" style={{ color: "rgba(255,255,255,0.7)" }}>
+                  Pricing
+                </Link>
+              </NavigationMenuItem>
+
+              <NavigationMenuItem>
                 <Link href="/dashboard#guide" className="inline-flex h-9 items-center px-3 text-sm rounded-md transition-colors hover:bg-white/8" style={{ color: "rgba(255,255,255,0.7)" }}>
                   About
                 </Link>
@@ -147,7 +153,8 @@ export function SurfcastNavbar() {
             </button>
           </div>
         </div>
-      </nav>
+      </div>
+    </nav>
 
       {/* Mobile drawer */}
       {mobileOpen && (
@@ -191,6 +198,7 @@ export function SurfcastNavbar() {
               </div>
             )}
 
+            <Link href="/pricing" onClick={() => setMobileOpen(false)} className="py-3 text-sm font-semibold border-b" style={{ color: "#fff", borderColor: "#1e2d3a" }}>Pricing</Link>
             <Link href="/dashboard#guide" onClick={() => setMobileOpen(false)} className="py-3 text-sm font-semibold border-b" style={{ color: "#fff", borderColor: "#1e2d3a" }}>About</Link>
 
             <Link href="/dashboard" onClick={() => setMobileOpen(false)} className="mt-4 flex items-center justify-center rounded-full py-3 text-sm font-semibold transition-opacity hover:opacity-90" style={{ background: BRAND, color: "#000" }}>
