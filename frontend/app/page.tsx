@@ -3,7 +3,7 @@ import { ArrowUpRight } from "lucide-react"
 import { BREAKS, RATING_LABELS, generateForecast, type BreakId } from "@/lib/surf-data"
 import { Footer } from "@/components/ui/footer"
 import { SurfcastNavbar } from "@/components/ui/navbar"
-import { PricingWithChart } from "@/components/ui/pricing-with-chart"
+import { StaggerTestimonials } from "@/components/ui/stagger-testimonials"
 
 const BRAND = "#e1fcad"
 const NAV_BG = "#0f1923"
@@ -116,9 +116,17 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Pricing */}
-        <div style={{ padding: "80px 40px", borderTop: "1px solid #1e2d3a" }}>
-          <PricingWithChart />
+        {/* Testimonials */}
+        <div style={{ borderTop: "1px solid #1e2d3a", paddingTop: 64 }}>
+          <div style={{ textAlign: "center", marginBottom: 8 }}>
+            <div style={{ color: "#e1fcad", fontSize: 10, fontWeight: 700, letterSpacing: "2.5px", textTransform: "uppercase", marginBottom: 12 }}>
+              What Surfers Are Saying
+            </div>
+            <h2 style={{ color: "#fff", fontSize: 32, fontWeight: 700, letterSpacing: "-1px", margin: 0 }}>
+              Built for SD locals, by SD locals.
+            </h2>
+          </div>
+          <StaggerTestimonials />
         </div>
 
         <Footer />
