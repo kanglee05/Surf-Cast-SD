@@ -9,3 +9,5 @@ tzdata>=2024.1
 pytest>=8.0,<9
 google-cloud-storage>=3.0,<4
 astral>=3.0,<4
+cfgrib>=0.9,<1
+xarray>=2023.1,<2026
