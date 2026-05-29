@@ -39,6 +39,7 @@ from astral.sun import sun
 from google.cloud import storage
 
 from etl.config import BREAKS, NDBC_STATIONS, NWS_USER_AGENT, TIDE_STATION
+from scripts.fetch_swell_ww3 import fetch_swell_ww3
 
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -160,14 +161,36 @@ def fetch_tide_forecast(days: int = FORECAST_DAYS) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def fetch_swell_forecast(days: int = FORECAST_DAYS) -> pd.DataFrame:
-    """Return swell forecast per station: WVHT, DPD, MWD, APD."""
+    """Return swell forecast per station: WVHT, DPD, MWD, APD.
+
+    Uses Open-Meteo's swell/wind-wave decomposition to compute a real APD
+    via energy-weighting, so APD != DPD (matches NDBC buoy semantics).
+
+    Definitions used here:
+      - DPD = swell wave period. NDBC computes DPD from the peak of the
+        full wave energy spectrum, which for SD's deep-water buoys is
+        almost always the swell peak (swell carries far more energy than
+        local wind chop in deep water). Using swell_wave_period keeps
+        the forecast feature distribution aligned with training data.
+      - APD = energy-weighted mean period across swell + wind components.
+        Wave energy is proportional to height^2 * period, so we weight
+        each component's period by its energy share. This is a model-
+        derived approximation; NDBC's reported APD comes from the
+        spectral moments directly. Values should be close but not identical.
+      - MWD = total blended direction from Open-Meteo (wave_direction).
+      - WVHT = total blended significant wave height (wave_height).
+    """
     rows = []
     for station, (lat, lon) in NDBC_COORDS.items():
         url = "https://marine-api.open-meteo.com/v1/marine"
         params = {
             "latitude": lat,
             "longitude": lon,
-            "hourly": "wave_height,wave_direction,wave_period",
+            "hourly": (
+                "wave_height,wave_direction,"
+                "swell_wave_height,swell_wave_period,"
+                "wind_wave_height,wind_wave_period"
+            ),
             "forecast_days": days,
             "timezone": "UTC",
         }
@@ -180,18 +203,52 @@ def fetch_swell_forecast(days: int = FORECAST_DAYS) -> pd.DataFrame:
             continue
 
         times = data.get("time", [])
-        wvht = data.get("wave_height", [])
-        mwd = data.get("wave_direction", [])
-        period = data.get("wave_period", [])
+        wvht_arr = data.get("wave_height", [])
+        mwd_arr = data.get("wave_direction", [])
+        s_ht = data.get("swell_wave_height", [])
+        s_per = data.get("swell_wave_period", [])
+        w_ht = data.get("wind_wave_height", [])
+        w_per = data.get("wind_wave_period", [])
 
         for i, t in enumerate(times):
+            sh = s_ht[i] if i < len(s_ht) else np.nan
+            sp = s_per[i] if i < len(s_per) else np.nan
+            wh = w_ht[i] if i < len(w_ht) else np.nan
+            wp = w_per[i] if i < len(w_per) else np.nan
+
+            # Validate each component independently
+            swell_valid = not (np.isnan(sh) or np.isnan(sp)) and sh > 0 and sp > 0
+            wind_valid = not (np.isnan(wh) or np.isnan(wp)) and wh > 0 and wp > 0
+
+            # Wave energy ∝ height² × period
+            se = sh ** 2 * sp if swell_valid else 0.0
+            we = wh ** 2 * wp if wind_valid else 0.0
+            te = se + we
+
+            # APD: energy-weighted mean period
+            if te > 0:
+                apd = (se * sp + we * wp) / te if (swell_valid or wind_valid) else np.nan
+            else:
+                apd = np.nan  # flat ocean — period is genuinely undefined
+
+            # DPD: always swell period (matches NDBC's spectral-peak behavior
+            # for deep-water buoys; preserves training-data distribution).
+            # If swell data is missing entirely, fall back to wind wave period
+            # rather than NaN, since downstream code expects DPD populated.
+            if swell_valid:
+                dpd = sp
+            elif wind_valid:
+                dpd = wp
+            else:
+                dpd = np.nan
+
             rows.append({
                 "timestamp_utc": pd.Timestamp(t, tz="UTC").floor("h"),
                 "station": station,
-                "WVHT": wvht[i] if i < len(wvht) else np.nan,
-                "DPD": period[i] if i < len(period) else np.nan,
-                "MWD": mwd[i] if i < len(mwd) else np.nan,
-                "APD": period[i] if i < len(period) else np.nan,  # Open-Meteo gives one period
+                "WVHT": wvht_arr[i] if i < len(wvht_arr) else np.nan,
+                "DPD": dpd,
+                "MWD": mwd_arr[i] if i < len(mwd_arr) else np.nan,
+                "APD": apd,
             })
 
     return pd.DataFrame(rows)
@@ -282,8 +339,8 @@ def build_forecast_dataset() -> pd.DataFrame:
     log.info("Fetching tide forecast...")
     tide = fetch_tide_forecast()
 
-    log.info("Fetching swell forecast...")
-    swell = fetch_swell_forecast()
+    log.info("Fetching swell forecast (WW3)...")
+    swell = fetch_swell_ww3()
 
     log.info("Fetching weather forecast...")
     weather = fetch_weather_forecast()

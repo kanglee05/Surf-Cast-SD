@@ -2,6 +2,8 @@
 # independent of what's on your Mac.
 FROM python:3.12-slim
 
+RUN apt-get update && apt-get install -y libeccodes-dev && rm -rf /var/lib/apt/lists/*
+
 # Don't write .pyc files; flush logs immediately so Cloud Run shows them live.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
