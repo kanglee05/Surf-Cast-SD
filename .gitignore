@@ -31,3 +31,4 @@ data/processed/**
 .idea/
 .vscode/
 .gstack/
+models/artifacts/
