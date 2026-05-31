@@ -38,11 +38,13 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from pathlib import Path
 
 import pandas as pd
 import requests
+from google.cloud import storage
 
 from etl.config import BREAKS, NWS_CACHE_DIR, NWS_USER_AGENT
 
@@ -148,12 +150,17 @@ def main() -> None:
         print(df.head(12))
         print("rows:", len(df))
 
-        out_dir = Path("data/processed")
-        out_dir.mkdir(parents=True, exist_ok=True)
         run_date = pd.Timestamp.now(tz="UTC").strftime("%Y%m%d")
-        out_path = out_dir / f"wind_{run_date}.csv"
-        df.to_csv(out_path, index=False)
-        print(f"wrote {out_path}")
+        blob_name = f"wind_{run_date}.csv"
+
+        csv_data = df.to_csv(index=False)
+
+        bucket_name = os.environ.get("GCS_BUCKET", "surfcast-sd-wind")
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        blob.upload_from_string(csv_data, content_type="text/csv")
+        print(f"uploaded gs://{bucket_name}/{blob_name}")
     except NotImplementedError:
         print("Implement this module — start at the docstring at the top of etl/fetch_wind.py")
 
