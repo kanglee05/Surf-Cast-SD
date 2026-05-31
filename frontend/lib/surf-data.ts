@@ -1,19 +1,17 @@
-export type BreakId = "la_jolla_shores" | "blacks" | "pb_point" | "ocean_beach" | "sunset_cliffs" | "imperial_beach"
+export type BreakId = "la_jolla_shores" | "blacks" | "pb_point"
 export type Rating = "epic" | "great" | "good" | "fair" | "poor_fair" | "poor"
 
 export interface BreakInfo { name: string; loc: string; lat: number; lon: number }
 export interface ForecastRow {
   time: Date; wvhtM: number; wvhtFtLo: number; wvhtFtHi: number
   dpd: number; windMph: number; windDeg: number; tideM: number; rating: Rating
+  mwd?: number
 }
 
 export const BREAKS: Record<BreakId, BreakInfo> = {
   la_jolla_shores: { name: "La Jolla Shores",    loc: "La Jolla, CA",       lat: 32.8579, lon: -117.2575 },
   blacks:          { name: "Blacks Beach",         loc: "La Jolla, CA",       lat: 32.8807, lon: -117.2436 },
   pb_point:        { name: "Pacific Beach Point",  loc: "Pacific Beach, CA",  lat: 32.7970, lon: -117.2550 },
-  ocean_beach:     { name: "Ocean Beach",          loc: "Ocean Beach, CA",    lat: 32.7443, lon: -117.2535 },
-  sunset_cliffs:   { name: "Sunset Cliffs",        loc: "Point Loma, CA",     lat: 32.7118, lon: -117.2502 },
-  imperial_beach:  { name: "Imperial Beach",       loc: "Imperial Beach, CA", lat: 32.5805, lon: -117.1318 },
 }
 
 export const RATING_COLORS: Record<Rating, string> = {
@@ -76,4 +74,26 @@ export function generateForecast(breakId: BreakId, hours = 48): ForecastRow[] {
       rating: ratingScore(wvht, dpd, wspd, wdir),
     }
   })
+}
+
+export async function fetchForecast(breakId: BreakId, hours = 48): Promise<ForecastRow[]> {
+  try {
+    const resp = await fetch(`/api/forecast?break=${breakId}`)
+    if (!resp.ok) throw new Error("API error")
+    const data = await resp.json()
+    return data.forecast.map((r: any) => ({
+      time: new Date(r.time),
+      wvhtM: r.wvhtM,
+      wvhtFtLo: r.wvhtFtLo,
+      wvhtFtHi: r.wvhtFtHi,
+      dpd: r.dpd,
+      windMph: r.windMph,
+      windDeg: r.windDeg,
+      tideM: r.tideM,
+      rating: r.rating as Rating,
+      mwd: r.mwd as number ?? 0,
+    }))
+  } catch {
+    return generateForecast(breakId, hours)
+  }
 }

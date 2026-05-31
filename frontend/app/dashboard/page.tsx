@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, Suspense } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import dynamic from "next/dynamic"
@@ -9,7 +9,7 @@ import {
   Tooltip, ResponsiveContainer, Cell, AreaChart, Area,
 } from "recharts"
 import {
-  BREAKS, RATING_COLORS, RATING_LABELS, generateForecast,
+  BREAKS, RATING_COLORS, RATING_LABELS, generateForecast, fetchForecast,
   windCompass, type BreakId, type Rating, type ForecastRow,
 } from "@/lib/surf-data"
 
@@ -32,8 +32,6 @@ const BORDER     = "#e0e0e0"
 const TEXT       = "#1a1a1a"
 const TEXT_MUTED = "#666666"
 const ACCENT     = "#1d9bf0"
-
-// ── HELPERS ──────────────────────────────────────────────────────────────────
 
 function ratingScore(r: Rating) {
   return ({ epic: 10, great: 8, good: 6, fair: 4, poor_fair: 2, poor: 1 } as const)[r]
@@ -87,8 +85,6 @@ function generateBuoyData(offset: number) {
   })
 }
 
-// ── COMPONENTS ───────────────────────────────────────────────────────────────
-
 function SwellCompass({ degrees }: { degrees: number }) {
   const ticks = [0, 45, 90, 135, 180, 225, 270, 315]
   return (
@@ -130,34 +126,42 @@ function StatChip({ label, value, sub, accent }: { label: string; value: string;
   )
 }
 
-// ── MAIN ─────────────────────────────────────────────────────────────────────
-
 const SURF_GUIDES: Record<BreakId, string> = {
   la_jolla_shores: "A long, sandy beach break suitable for all skill levels. Best conditions arrive with WNW to NW swells hitting the exposed beach. Morning glass-offs before the onshore sea breeze kicks in (typically 11am–noon) provide the cleanest conditions.",
   blacks:          "San Diego's premier big-wave venue, below the Torrey Pines cliffs. Access via a steep trail. Best on larger NW swells with light offshore winds. The cliffs provide some wind protection.",
   pb_point:        "A consistent beach break handling a variety of swell directions. The jetty at the south end creates a semi-sheltered pocket that holds shape in moderate onshore conditions. Best at mid-tide on W to NW swells.",
-  ocean_beach:     "Ocean Beach Pier creates a sandbar generating quality peaks on either side. Works best on W and WNW swells. Watch for rip currents near the pier structure. Best on an incoming tide.",
-  sunset_cliffs:   "A series of rocky reef breaks along the Point Loma coastline. S to SW swells activate the southern-facing reefs. NW swells light up the more exposed breaks. Heavy water — not for beginners.",
-  imperial_beach:  "San Diego's southernmost beach. Offers quality surf on S swells blocked elsewhere in the county. The pier provides a sandbar. Check water quality advisories before paddling out.",
 }
 
 function DashboardInner() {
   const searchParams = useSearchParams()
   const initialBreak = (searchParams.get("break") as BreakId) || "la_jolla_shores"
   const [activeBreak, setActiveBreak] = useState<BreakId>(initialBreak)
+  const [fc, setFc] = useState<ForecastRow[]>(() => generateForecast(activeBreak))
 
-  const fc        = generateForecast(activeBreak)
-  const current   = fc[0]
+  useEffect(() => {
+    const load = () => fetchForecast(activeBreak).then(data => {
+      if (data.length > 0) setFc(data)
+    })
+    load()
+    const interval = setInterval(load, 30 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [activeBreak])
+
+  const now = new Date()
+  const current = fc.reduce((best, row) => {
+    const rowTime = new Date(String(row.time))
+    const bestTime = new Date(String(best.time))
+    return Math.abs(rowTime.getTime() - now.getTime()) < Math.abs(bestTime.getTime() - now.getTime()) ? row : best
+  }, fc[0])
+
   const breakInfo = BREAKS[activeBreak]
   const ratingColor = RATING_COLORS[current.rating]
-
   const bestWindow = getBestWindow(fc)
   const waterTemp  = getWaterTemp()
   const uv         = getUV()
   const sun        = getSunTimes()
   const buoy1      = generateBuoyData(0)
   const buoy2      = generateBuoyData(1.2)
-
   const uvLabel = uv <= 2 ? "Low" : uv <= 5 ? "Moderate" : uv <= 7 ? "High" : uv <= 10 ? "Very High" : "Extreme"
   const uvColor = uv <= 2 ? "#22c55e" : uv <= 5 ? "#eab308" : uv <= 7 ? "#f97316" : "#ef4444"
 
@@ -173,7 +177,6 @@ function DashboardInner() {
   return (
     <div style={{ background: "#f5f5f5", minHeight: "100vh", fontFamily: "var(--font-sans), sans-serif" }}>
 
-      {/* ── Navbar ── */}
       <nav style={{ background: NAV_BG, height: 52, display: "flex", alignItems: "center", padding: "0 24px", position: "sticky", top: 0, zIndex: 1000, borderBottom: `1px solid ${NAV_BORDER}` }}>
         <Link href="/" style={{ color: BRAND, fontWeight: 700, fontSize: 20, letterSpacing: "-0.3px", marginRight: 32, textDecoration: "none" }}>
           SurfCast SD
@@ -186,7 +189,6 @@ function DashboardInner() {
         <span style={{ color: NAV_MUTED, fontSize: 13 }}>San Diego, CA</span>
       </nav>
 
-      {/* ── Break header ── */}
       <div style={{ background: NAV_BG, padding: "16px 24px 0", borderBottom: `1px solid ${NAV_BORDER}` }}>
         <h1 style={{ color: "#fff", fontSize: 26, fontWeight: 700, margin: "0 0 2px", letterSpacing: "-0.3px" }}>{breakInfo.name}</h1>
         <div style={{ color: NAV_MUTED, fontSize: 13, marginBottom: 14 }}>{breakInfo.loc}</div>
@@ -199,27 +201,28 @@ function DashboardInner() {
         </div>
       </div>
 
-      {/* ── Nearby spots strip ── */}
       <div style={{ background: NAV_BG, padding: "12px 24px", borderBottom: `1px solid ${NAV_BORDER}` }}>
         <div style={{ color: NAV_MUTED, fontSize: 11, fontWeight: 600, letterSpacing: "0.5px", marginBottom: 10, textTransform: "uppercase" }}>Nearby Spots</div>
         <div style={{ display: "flex", overflowX: "auto", gap: 8, paddingBottom: 4 }}>
           {(Object.keys(BREAKS) as BreakId[]).map((bid) => {
-            const row    = generateForecast(bid, 1)[0]
+            const EXPOSURE: Record<string, number> = { la_jolla_shores: 0.80, blacks: 1.05, pb_point: 0.95 }
+            const liveWvhtM = fc[0]?.wvhtM ?? 1.3
+            const exp = EXPOSURE[bid] ?? 1.0
+            const fakeRow = generateForecast(bid, 1)[0]
+            const row = { ...fakeRow, wvhtM: liveWvhtM * exp, wvhtFtLo: liveWvhtM * exp * 3.281 * 0.85, wvhtFtHi: liveWvhtM * exp * 3.281 * 1.15, rating: fc[0]?.rating ?? fakeRow.rating }
             const color  = RATING_COLORS[row.rating]
             const active = bid === activeBreak
             return (
               <button key={bid} onClick={() => setActiveBreak(bid)}
                 style={{ minWidth: 130, flexShrink: 0, background: active ? "#1e2d3a" : "#162231", border: active ? `1px solid ${color}` : `1px solid ${NAV_BORDER}`, borderRadius: 6, padding: "10px 14px", cursor: "pointer", textAlign: "left" }}>
                 <div style={{ color: active ? "#fff" : NAV_DIM, fontSize: 12, fontWeight: 600, marginBottom: 4 }}>{active ? "● " : ""}{BREAKS[bid].name}</div>
-                <div style={{ color: "#fff", fontSize: 15, fontWeight: 700 }}>{Math.round(row.wvhtFtLo)}–{Math.round(row.wvhtFtHi)} ft</div>
-                <div style={{ color, fontSize: 10, fontWeight: 700, letterSpacing: "0.4px" }}>{RATING_LABELS[row.rating]}</div>
+                <div style={{ color: NAV_DIM, fontSize: 12, marginTop: 2 }}>{BREAKS[bid].loc}</div>
               </button>
             )
           })}
         </div>
       </div>
 
-      {/* ── Break selector ── */}
       <div style={{ background: SURFACE, borderBottom: `1px solid ${BORDER}`, padding: "8px 24px" }}>
         <select value={activeBreak} onChange={(e) => setActiveBreak(e.target.value as BreakId)}
           style={{ maxWidth: 280, fontSize: 14, padding: "6px 10px", borderRadius: 6, border: `1px solid ${BORDER}`, background: SURFACE, color: TEXT }}>
@@ -229,13 +232,10 @@ function DashboardInner() {
         </select>
       </div>
 
-      {/* ── Main content ── */}
       <div style={{ maxWidth: 1400, margin: "0 auto", padding: "24px 24px 0" }}>
 
-        {/* Map */}
         <SurfMap activeBreak={activeBreak} onBreakSelect={setActiveBreak} />
 
-        {/* Quick stats row */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 24 }}>
           <div style={{ background: SURFACE, borderRadius: 8, border: `1px solid ${BORDER}`, borderTop: `3px solid ${RATING_COLORS[bestWindow.rating]}`, padding: "14px 16px" }}>
             <div style={{ color: "#aaa", fontSize: 10, fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: 6 }}>Best Window</div>
@@ -248,17 +248,14 @@ function DashboardInner() {
           <QuickCard label="Sunset"     value={sun.sunset}           sub="Evening glass"          accentColor="#f97316"   topColor="#f97316" />
         </div>
 
-        {/* ── Forecast + Conditions ── */}
         <div id="forecast" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 24, marginBottom: 24 }}>
 
-          {/* Forecast chart card */}
           <div style={{ background: SURFACE, borderRadius: 8, border: `1px solid ${BORDER}`, overflow: "hidden" }}>
             <div style={{ padding: "12px 16px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: TEXT }}>{breakInfo.name} — 24-Hour Forecast</div>
               <div style={{ color: TEXT_MUTED, fontSize: 12 }}>NDBC + NWS · Bars = wave ht · Line = tide</div>
             </div>
 
-            {/* Rating strip */}
             <div style={{ display: "flex", borderBottom: `1px solid ${BORDER}` }}>
               <div style={{ width: 52, flexShrink: 0, color: TEXT_MUTED, fontSize: 11, padding: 8, borderRight: `1px solid ${BORDER}`, display: "flex", alignItems: "center" }}>Today</div>
               {fc.slice(0, 8).map((row, i) => (
@@ -270,7 +267,6 @@ function DashboardInner() {
               ))}
             </div>
 
-            {/* Recharts dual-axis chart */}
             <div style={{ padding: "16px 8px 8px", height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={chartData} margin={{ left: -10, right: 32, top: 4, bottom: 0 }}>
@@ -293,13 +289,11 @@ function DashboardInner() {
             </div>
           </div>
 
-          {/* Conditions card */}
           <div style={{ background: SURFACE, borderRadius: 8, border: `1px solid ${BORDER}`, overflow: "hidden" }}>
             <div style={{ background: "#f8f9fa", padding: "10px 16px", fontSize: 12, fontWeight: 700, color: TEXT_MUTED, letterSpacing: "0.5px", borderBottom: `1px solid ${BORDER}`, textTransform: "uppercase" }}>
               Current Conditions
             </div>
             <div style={{ padding: 16 }}>
-              {/* Wave height + rating */}
               <div style={{ display: "flex", alignItems: "flex-end", marginBottom: 16 }}>
                 <div style={{ fontSize: 48, fontWeight: 700, color: TEXT, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
                   {Math.round(current.wvhtFtLo)}–{Math.round(current.wvhtFtHi)}
@@ -312,7 +306,6 @@ function DashboardInner() {
                 </div>
               </div>
 
-              {/* Stat grid */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
                 <StatChip label="Tide"       value={`${current.tideM.toFixed(1)}m`}       sub={current.tideM > 1 ? "Rising" : "Falling"} />
                 <StatChip label="Wind"       value={`${Math.round(current.windMph)} mph`}  sub={windCompass(current.windDeg)} />
@@ -320,20 +313,18 @@ function DashboardInner() {
                 <StatChip label="Water Temp" value={`${waterTemp.f}°F`}                   sub={`${waterTemp.c}°C`} accent={ACCENT} />
               </div>
 
-              {/* Swell compass */}
               <div style={{ background: "#f8f9fa", borderRadius: 6, padding: "12px 16px", display: "flex", alignItems: "center", gap: 16 }}>
-                <SwellCompass degrees={current.windDeg % 360} />
+                <SwellCompass degrees={(current.mwd ?? current.windDeg) % 360} />
                 <div>
                   <div style={{ color: "#aaa", fontSize: 10, fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: 4 }}>Swell Direction</div>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: TEXT, fontVariantNumeric: "tabular-nums" }}>{Math.round(current.windDeg % 360)}°</div>
-                  <div style={{ color: TEXT_MUTED, fontSize: 13 }}>{windCompass(current.windDeg)}</div>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: TEXT, fontVariantNumeric: "tabular-nums" }}>{Math.round((current.mwd ?? current.windDeg) % 360)}°</div>
+                  <div style={{ color: TEXT_MUTED, fontSize: 13 }}>{windCompass(current.mwd ?? current.windDeg)}</div>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── Buoy section ── */}
         <div id="buoy" style={{ marginBottom: 32 }}>
           <div style={{ fontSize: 18, fontWeight: 700, color: TEXT, marginBottom: 16 }}>Nearby Buoys</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
@@ -352,7 +343,6 @@ function DashboardInner() {
                     </div>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, background: BORDER }}>
-                    {/* Wave height chart */}
                     <div style={{ background: SURFACE, padding: 12 }}>
                       <div style={{ color: TEXT_MUTED, fontSize: 11, fontWeight: 600, marginBottom: 8 }}>Wave Height (ft)</div>
                       <div style={{ height: 110 }}>
@@ -372,7 +362,6 @@ function DashboardInner() {
                         </ResponsiveContainer>
                       </div>
                     </div>
-                    {/* Period chart */}
                     <div style={{ background: SURFACE, padding: 12 }}>
                       <div style={{ color: TEXT_MUTED, fontSize: 11, fontWeight: 600, marginBottom: 8 }}>Dominant Period (s)</div>
                       <div style={{ height: 110 }}>
@@ -399,7 +388,6 @@ function DashboardInner() {
           </div>
         </div>
 
-        {/* ── Surf guide ── */}
         <div id="guide" style={{ padding: "24px 0 48px", borderTop: `1px solid ${BORDER}` }}>
           <div style={{ fontSize: 18, fontWeight: 700, color: TEXT, marginBottom: 12 }}>Surf Guide</div>
           <p style={{ color: "#444", fontSize: 14, lineHeight: 1.75, maxWidth: 720, margin: 0 }}>
@@ -408,7 +396,6 @@ function DashboardInner() {
         </div>
       </div>
 
-      {/* ── Footer ── */}
       <div style={{ background: NAV_BG, padding: "32px 24px", marginTop: 48, textAlign: "center" }}>
         <div style={{ color: BRAND, fontWeight: 700, fontSize: 18, marginBottom: 8 }}>SurfCast SD</div>
         <div style={{ color: "#4a5568", fontSize: 12 }}>UCSD Surf &amp; Sail Club · Data: NDBC, NOAA, NWS</div>

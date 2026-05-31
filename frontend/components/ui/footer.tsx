@@ -26,9 +26,6 @@ export function Footer({ className }: { className?: string }) {
                 { title: "La Jolla Shores",   href: "/dashboard?break=la_jolla_shores" },
                 { title: "Blacks Beach",       href: "/dashboard?break=blacks" },
                 { title: "Pacific Beach Point",href: "/dashboard?break=pb_point" },
-                { title: "Ocean Beach",        href: "/dashboard?break=ocean_beach" },
-                { title: "Sunset Cliffs",      href: "/dashboard?break=sunset_cliffs" },
-                { title: "Imperial Beach",     href: "/dashboard?break=imperial_beach" },
               ]}
             />
           </div>
