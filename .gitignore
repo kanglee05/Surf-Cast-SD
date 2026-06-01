@@ -32,3 +32,4 @@ data/processed/**
 .vscode/
 .gstack/
 models/artifacts/
+package-lock.json

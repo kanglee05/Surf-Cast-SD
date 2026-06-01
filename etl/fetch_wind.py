@@ -38,11 +38,13 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from pathlib import Path
 
 import pandas as pd
 import requests
+from google.cloud import storage
 
 from etl.config import BREAKS, NWS_CACHE_DIR, NWS_USER_AGENT
 
@@ -147,9 +149,20 @@ def main() -> None:
         df = fetch_wind_all_breaks(cache_dir=NWS_CACHE_DIR)
         print(df.head(12))
         print("rows:", len(df))
+
+        run_date = pd.Timestamp.now(tz="UTC").strftime("%Y%m%d")
+        blob_name = f"wind_{run_date}.csv"
+
+        csv_data = df.to_csv(index=False)
+
+        bucket_name = os.environ.get("GCS_BUCKET", "surfcast-sd-wind")
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        blob.upload_from_string(csv_data, content_type="text/csv")
+        print(f"uploaded gs://{bucket_name}/{blob_name}")
     except NotImplementedError:
         print("Implement this module — start at the docstring at the top of etl/fetch_wind.py")
-
 
 if __name__ == "__main__":
     main()

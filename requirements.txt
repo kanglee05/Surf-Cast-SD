@@ -13,3 +13,7 @@ gunicorn>=22.0,<23
 
 # Dev / tests
 pytest>=8.0,<9
+google-cloud-storage>=3.0,<4
+astral>=3.0,<4
+cfgrib>=0.9,<1
+xarray>=2023.1,<2026
